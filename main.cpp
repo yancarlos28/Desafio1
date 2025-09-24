@@ -72,12 +72,104 @@ bool contienePista(const char* texto, size_t lenTexto,
     }
     return false;
 }
+//--------------funciones para implementar el metodo de compresion LZ78-------------------//
+unsigned char** crearDicc(size_t tam){
+    //reservaion de memoria para los indices del diccionario.
+    /* Eltamaño de la reserva es tam/3, porque cada 3 caracteres del mensaje desencriptado
+       se agregara un nuevo caracter en el diccionario y el +1, porque se debe inicializar el primer indice (puntero)
+       del diccionario con un caracter vacio ''.
+    */
+    unsigned char **ptr = new unsigned char *[(tam/3)+1];
+    return ptr;
+}
+void iniDicc(unsigned char **ptr, size_t tam ){
+    //se reserva memoria para los arreglos que almacenarán el diccionario
+    for (int i=0;i<(tam/3)+1;i++){
+        ptr[i]=nullptr;
+    }
+    ptr[0]=new unsigned char [1];
+    ptr[0][0]='\0';
+}
+unsigned char *buscarCadena(unsigned char **ptr,short int a){
+    return ptr[a];
+}
+unsigned char* reconstruirCadena(unsigned char* ptr, unsigned char c) {
+    //La longitud se calcula manualmente
+    int len =longitud(ptr);
+    // Reservar memoria para la nueva cadena (+1 para c, +1 para '\0')
+    unsigned char* s = new unsigned char[len + 2];
 
+    for (int i = 0; i < len; ++i) {
+        s[i] = ptr[i];
+    }
+    s[len] = c;
+    s[len + 1] = '\0';
+
+    return s;
+}
+void cadDescomprimida(unsigned char *ptr1 , unsigned char *ptr2,int &nRef){
+    //formato de parametros para la funcion cadDescomprimida (cadRecons, arrDesCom, nRef)
+
+    for (int i = 0; ptr1[i]!='\0';i++){
+        ptr2[nRef]=ptr1[i];
+        nRef++;
+    }
+
+}
+void inserEnDicc(unsigned char ** ptr1, unsigned char *ptr2,short int n){
+    ///formato de parámetros para la funcon inserEnDicc(diccionario,cadRecons,indDicc)
+    int len = longitud(ptr2);
+    ptr1[n] = new unsigned char[len + 1];
+    for (int i = 0; i <= len; i++) {
+        ptr1[n][i] = ptr2[i];
+    }
+}
+unsigned char* descompresor (unsigned char * arreglo,size_t tam,size_t &lenMen){
+    //formato de parametros para la funcion descompresor(work,tam)
+    short int indDicc=1;
+    unsigned char **diccionario;
+    unsigned char *arrDesCom;
+
+    diccionario=crearDicc(tam);
+    iniDicc(diccionario,tam);
+    arrDesCom = new unsigned char [tam*10];
+
+    for (size_t i=0; i<tam;i+=3){
+        size_t prefijo = ((size_t)arreglo[i]<<8)|(size_t)arreglo[i+1];
+        unsigned char cArreglo = arreglo[i+2];
+        unsigned char *arrEnDicc=buscarCadena(diccionario,prefijo);
+        unsigned char *cadRecons=reconstruirCadena(arrEnDicc,cArreglo);
+        cadDescomprimida(cadRecons,arrDesCom,lenMen);
+        inserEnDicc(diccionario,cadRecons,indDicc);
+        indDicc+=1;
+        delete[] cadRecons;
+    }
+    arrDesCom[lenMen] = '\0';
+    libMem(diccionario,(tam/3)+1);
+    return arrDesCom;
+}
+void libMem(unsigned char **ptr, size_t filas){
+    //para matrices bidimensionales
+    for (int i=0;i<filas;i++){
+        delete[] ptr[i];
+        ptr[i]=NULL;
+    }
+    delete[] ptr;
+    ptr=NULL;
+}
+int longitud(unsigned char* cadena) {
+    //esta funcion calcula manualmente la longitud de un arreglo
+    int len = 0;
+    while (cadena[len] != '\0') {
+        len++;
+    }
+    return len;
+}
 //------------------------- MAIN -------------------------//
 int main() {
     // Rutas: ajusta si es necesario
-    const char* rutaEnc   = "C:\\Users\\Jean\\Downloads\\datasetDesarrollo\\datasetDesarrollo\\Encriptado1.txt";
-    const char* rutaPista = "C:\\Users\\Jean\\Downloads\\datasetDesarrollo\\datasetDesarrollo\\Pista1.txt";
+    const char* rutaEnc   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Encriptado2.txt";
+    const char* rutaPista = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\pista2.txt";
 
     size_t tamEnc = 0, tamPista = 0;
     unsigned char* datos = leer_archivo(rutaEnc, tamEnc);
@@ -120,14 +212,32 @@ int main() {
                 delete[] mensaje;
                 break; // salir del for n
             }
+            else if(){
+                delete[] mensaje;
+                mensaje=nullptr;
+                size_t tam = sizeof(work);
+                size_t lenMen=0;
+                unsigned char *mensaje=descompresor(work,tam,&lenMen);
+                if(contienePista(mensaje,lenMen,(const char*)datos_pista, tamPista)==true){
+                    encontrado = true;
+                    bestK = k; bestN = n;
+
+                    cout << "[ENCONTRADO] RLE con K=0x" << hex << bestK
+                         << " n=" << dec << bestN << "\n";
+
+                    ofstream fout("resultado_encontrado.txt", ios::binary);
+                    fout.write(mensaje, (std::streamsize)outLen);
+                    delete[] mensaje;
+                    mensaje= NULL;
+                    break;
+                }
+            }
             delete[] mensaje; // siempre liberar
         }
     }
-
     if (!encontrado) {
         cout << "No se encontró la pista.\n";
     }
-
     // Liberar
     delete[] work;
     delete[] datos;
