@@ -2,10 +2,11 @@
 #include <fstream>
 #include <cstdio>
 #include <stdint.h>
+#include <iomanip>
 using namespace std;
 
 //--------------------- FUNCIONES -------------------------//
-
+unsigned short unirDosBytes(unsigned char hi, unsigned char lo);
 // Leer archivo binario mínimo
 unsigned char* leer_archivo(const char* nombre, size_t &tam) {
     ifstream f(nombre, ios::binary | ios::ate);
@@ -29,103 +30,72 @@ unsigned char** crearDicc(size_t tam){
        se agregara un nuevo caracter en el diccionario y el +1, porque se debe inicializar el primer indice (puntero)
        del diccionario con un caracter vacio ''.
     */
-    unsigned char **ptr = new unsigned char *[(tam/3)+1];
+    if (tam == 0) {
+        cout << "Error: tamaño inválido para crear el diccionario" << endl;
+        return nullptr;
+    }
+    // tam/3 es la cantidad de tripletas, +1 para el índice 0 (prefijo vacío)
+    size_t capacidad = (tam / 3) + 1;
+    unsigned char **ptr = new unsigned char*[capacidad];
+
+    for (size_t i = 0; i < capacidad; i++) {
+        ptr[i] = new unsigned char[5];
+        for (int j = 0; j < 5; j++) {
+            ptr[i][j] = '\0';
+        }
+    }
+
     return ptr;
+}
+// Reiniciar diccionario sin liberar memoria
+void reiniciarDicc(unsigned char** diccionario, size_t tam) {
+    if (!diccionario) return;
+    size_t capacidad = (tam / 3) + 1;
+
+    for (size_t i = 0; i < capacidad; i++) {
+        for (int j = 0; j < 5; j++) {
+            diccionario[i][j] = '\0';
+        }
+    }
 }
 void iniDicc(unsigned char **ptr, size_t tam ){
     //se reserva memoria para los arreglos que almacenarán el diccionario
-    for (int i=0;i<(tam/3)+1;i++){
+    for (size_t i=0;i<(tam/3)+1;i++){
         ptr[i]=nullptr;
     }
     ptr[0]=new unsigned char [1];
     ptr[0][0]='\0';
 }
-unsigned char *buscarCadena(unsigned char **ptr,short int a){
-    return ptr[a];
+unsigned short unirDosBytes(unsigned char hi,unsigned char lo){
+    return ((unsigned char)hi<<8)|(unsigned char)lo;
 }
-unsigned char* reconstruirCadena(unsigned char* ptr, unsigned char c) {
-    //La longitud se calcula manualmente
-    int len =longitud(ptr);
-    // Reservar memoria para la nueva cadena (+1 para c, +1 para '\0')
-    unsigned char* s = new unsigned char[len + 2];
 
-<<<<<<< HEAD
-    for (int i = 0; i < len; ++i) {
-        s[i] = ptr[i];
+void inserEnDicc(unsigned char ** diccionario, unsigned short pr,unsigned char sym, size_t indDicc){
+    diccionario[indDicc][0]=(pr >> 8) & 0xFF;
+    diccionario[indDicc][1]=pr & 0xFF;
+    diccionario[indDicc][2]=sym;
+    unsigned short len=0;
+    if(pr!=0){
+        len=unirDosBytes(diccionario[pr][3],diccionario[pr][4]);
     }
-    s[len] = c;
-    s[len + 1] = '\0';
-
-    return s;
+    len++;
+    diccionario[indDicc][3]=(len >> 8) & 0xFF;
+    diccionario[indDicc][4]=len & 0xFF;
 }
-void cadDescomprimida(unsigned char *ptr1 , unsigned char *ptr2,int &nRef){
-    //formato de parametros para la funcion cadDescomprimida (cadRecons, arrDesCom, nRef)
 
-    for (int i = 0; ptr1[i]!='\0';i++){
-        ptr2[nRef]=ptr1[i];
-        nRef++;
-    }
-
-}
-void inserEnDicc(unsigned char ** ptr1, unsigned char *ptr2,short int n){
-    ///formato de parámetros para la funcon inserEnDicc(diccionario,cadRecons,indDicc)
-    int len = longitud(ptr2);
-    ptr1[n] = new unsigned char[len + 1];
-    for (int i = 0; i <= len; i++) {
-        ptr1[n][i] = ptr2[i];
-    }
-}
-unsigned char* descompresor (unsigned char * arreglo,size_t tam,size_t &lenMen){
-    //formato de parametros para la funcion descompresor(work,tam)
-    short int indDicc=1;
-    unsigned char **diccionario;
-    unsigned char *arrDesCom;
-
-    diccionario=crearDicc(tam);
-    iniDicc(diccionario,tam);
-    arrDesCom = new unsigned char [tam*10];
-
-    for (size_t i=0; i<tam;i+=3){
-        size_t prefijo = ((size_t)arreglo[i]<<8)|(size_t)arreglo[i+1];
-        unsigned char cArreglo = arreglo[i+2];
-        unsigned char *arrEnDicc=buscarCadena(diccionario,prefijo);
-        unsigned char *cadRecons=reconstruirCadena(arrEnDicc,cArreglo);
-        cadDescomprimida(cadRecons,arrDesCom,lenMen);
-        inserEnDicc(diccionario,cadRecons,indDicc);
-        indDicc+=1;
-        delete[] cadRecons;
-    }
-    arrDesCom[lenMen] = '\0';
-    libMem(diccionario,(tam/3)+1);
-    return arrDesCom;
-}
 void libMem(unsigned char **ptr, size_t filas){
     //para matrices bidimensionales
-    for (int i=0;i<filas;i++){
+    for (size_t i=0;i<filas;i++){
         delete[] ptr[i];
         ptr[i]=NULL;
     }
     delete[] ptr;
     ptr=NULL;
 }
-int longitud(unsigned char* cadena) {
-    //esta funcion calcula manualmente la longitud de un arreglo
-    int len = 0;
-    while (cadena[len] != '\0') {
-        len++;
-    }
-    return len;
-}
-//------------------------- MAIN -------------------------//
-int main() {
-    // Rutas: ajusta si es necesario
-    const char* rutaEnc   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Encriptado2.txt";
-    const char* rutaPista = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\pista2.txt";
-=======
+
 //construcción de pi[]
 unsigned int* construir_tabla_fallo(const char* pat, size_t m) {
     if (m == 0) return nullptr;
->>>>>>> ea38a19db01e3630b240d40fc2c32a688d6c9f5f
 
     unsigned int* pi = new unsigned int[m];
     pi[0] = 0;  // el primer prefijo siempre es 0
@@ -145,8 +115,25 @@ unsigned int* construir_tabla_fallo(const char* pat, size_t m) {
 
     return pi;
 }
+bool kmp_step(unsigned char c,
+              const unsigned char* pat,
+              short int m,
+              unsigned int& estado,
+              const unsigned int* lps) {
+    while (estado > 0 && c != pat[estado]) {
+        estado = lps[estado - 1];
+    }
+    if (c == pat[estado]) {
+        estado++;
+        if (estado == m) {
+            estado = lps[estado - 1]; // reiniciar para buscar más ocurrencias
+            return true;              // ¡pista encontrada!
+        }
+    }
+    return false;
+}
 
-//Filtro para descartas combinaciones inválidas del método RLE
+//Filtro para descartar combinaciones inválidas del método RLE
 bool filtro_RLE(const unsigned char* datos, size_t tam, int K, int n)
 {
     if (tam < 9) return false; // necesitamos mínimo 3 tripletas = 9 bytes
@@ -169,55 +156,6 @@ bool filtro_RLE(const unsigned char* datos, size_t tam, int K, int n)
             if ((sym >= 65 && sym <= 90) || (sym >= 97 && sym <= 122)) {
                 validas++;
             }
-<<<<<<< HEAD
-
-            size_t outLen = 0;
-            // char* mensaje = descomprimirRLE_ASCII(work, tamEnc, outLen);
-            char* mensaje = rle16_be_descomprimir(work, tamEnc, outLen);
-
-            if (mensaje && outLen > 0 &&
-                contienePista(mensaje, outLen, (const char*)datos_pista, tamPista)) {
-                encontrado = true;
-                bestK = k; bestN = n;
-
-                cout << "[ENCONTRADO] RLE con K=0x" << hex << bestK
-                     << " n=" << dec << bestN << "\n";
-
-                ofstream fout("resultado_encontrado.txt", ios::binary);
-                fout.write(mensaje, (std::streamsize)outLen);
-                delete[] mensaje;
-                break; // salir del for n
-            }
-            else if(){
-                delete[] mensaje;
-                mensaje=nullptr;
-                size_t tam = sizeof(work);
-                size_t lenMen=0;
-                unsigned char *mensaje=descompresor(work,tam,&lenMen);
-                if(contienePista(mensaje,lenMen,(const char*)datos_pista, tamPista)==true){
-                    encontrado = true;
-                    bestK = k; bestN = n;
-
-                    cout << "[ENCONTRADO] RLE con K=0x" << hex << bestK
-                         << " n=" << dec << bestN << "\n";
-
-                    ofstream fout("resultado_encontrado.txt", ios::binary);
-                    fout.write(mensaje, (std::streamsize)outLen);
-                    delete[] mensaje;
-                    mensaje= NULL;
-                    break;
-                }
-            }
-            delete[] mensaje; // siempre liberar
-        }
-    }
-    if (!encontrado) {
-        cout << "No se encontró la pista.\n";
-    }
-    // Liberar
-    delete[] work;
-    delete[] datos;
-=======
         }
     }
 
@@ -322,6 +260,78 @@ bool filtro_LZ78(const unsigned char* datos, size_t tam, int K, int n)
     return true;
 }
 
+bool emitirPrefijo(unsigned short pr,
+                   unsigned char sym,
+                   unsigned char** diccionario,
+                   const unsigned char* datos_pista,
+                   short int tamPista,
+                   unsigned int &estado,
+                   const unsigned int* pi,
+                   size_t indDicc)
+{
+    // Caso base: prefijo vacío
+    if (pr == 0) {
+        return kmp_step(sym, datos_pista, tamPista, estado, pi);
+    }
+    // Validar índice de prefijo
+    if (pr >= indDicc) {
+        std::cerr << "Error: prefijo fuera de rango (" << pr << ")" << std::endl;
+        return false;
+    }
+    // Recursivamente emitir el prefijo del padre
+    unsigned short padre = unirDosBytes(diccionario[pr][0], diccionario[pr][1]);
+
+    // Emitir prefijo del padre
+    if (padre != 0) {
+        if (emitirPrefijo(padre,
+                          diccionario[pr][2],  // símbolo del padre
+                          diccionario,
+                          datos_pista,
+                          tamPista,
+                          estado,
+                          pi,
+                          indDicc)) {
+            return true; // pista encontrada en el prefijo
+        }
+    } else {
+        // Si padre == 0, emitir directamente el símbolo del padre
+        if (kmp_step(diccionario[pr][2], datos_pista, tamPista, estado, pi)) {
+            return true;
+        }
+    }
+
+    // Finalmente emitir el símbolo actual
+    return kmp_step(sym, datos_pista, tamPista, estado, pi);
+}
+
+bool LZ78_con_pista(const unsigned char *archivo,
+                    const size_t tamEnc,
+                    const unsigned char *datos_pista,
+                    const short int tamPista,
+                    int k,int n,
+                    unsigned char** diccionario,
+                    unsigned int* pi){
+
+    //progreso en lacoincidencia de pista
+    unsigned int estado=0;
+
+    size_t indDicc=1;
+
+    for(size_t i=0;i+2<tamEnc;i+=3){
+        // Desencriptar trío
+        unsigned short pr = unirDosBytes(rotR(archivo[i] ^ (unsigned char)k, n),rotR(archivo[i+1] ^ (unsigned char)k, n));
+        unsigned char sym = rotR(archivo[i+2] ^ (unsigned char)k, n);
+
+        inserEnDicc(diccionario,pr,sym,indDicc);
+
+        // --- Procesar símbolo con KMP ---
+        if (emitirPrefijo(pr, sym, diccionario, datos_pista, tamPista, estado, pi,indDicc)) {
+            return true; // pista encontrada
+        }
+        indDicc++;
+    }
+    return false;
+}
 
 // RLE: tríos [hi][lo][sym] con contador 16-bit big-endian
 bool descomprimir_RLE(const unsigned char* archivo, size_t tam_arc,
@@ -352,15 +362,85 @@ bool descomprimir_RLE(const unsigned char* archivo, size_t tam_arc,
     out.close();
     return true;
 }
+bool descomprimir_LZ78(const unsigned char* enc, size_t nin,
+                       int K, int nbits, const char* outpath)
+{
+    if(!enc || nin < 3 || !outpath) return false;
+    if(nin % 3 != 0) return false; // deben ser tríos exactos
+
+    size_t max_entries = nin / 3;               // 1 entrada por trío como cota
+    int* prefix = new int[max_entries + 1];         // base 1
+    unsigned char* lastch = new unsigned char[max_entries + 1];
+    char* tmp = new char[max_entries];                         // reconstrucción frase
+
+    std::ofstream out(outpath, std::ios::binary);
+    if(!out){ delete[] prefix; delete[] lastch; delete[] tmp; return false; }
+
+    size_t dict_size = 0;
+
+    for(size_t pos = 0; pos + 3 <= nin; pos += 3){
+        // Descifrar: XOR K → rotR(n)
+        unsigned char hi = rotR((unsigned char)(enc[pos]     ^ (unsigned char)K), nbits);
+        unsigned char lo = rotR((unsigned char)(enc[pos + 1] ^ (unsigned char)K), nbits);
+        unsigned char ch = rotR((unsigned char)(enc[pos + 2] ^ (unsigned char)K), nbits);
+
+        // Índice 16-bit big-endian
+        int idx = ((int)hi << 8) | (int)lo;
+
+        // Validación LZ78: 0 <= idx <= dict_size
+        if(idx < 0 || (size_t)idx > dict_size){
+            out.close();
+            delete[] prefix; delete[] lastch; delete[] tmp;
+            return false;
+        }
+
+        // Insertar nueva entrada
+        dict_size++;
+        if(dict_size > max_entries){
+            out.close();
+            delete[] prefix; delete[] lastch; delete[] tmp;
+            return false;
+        }
+        prefix[dict_size] = idx;
+        lastch[dict_size] = ch;
+
+        // Reconstruir S = dict[idx] + ch en 'tmp' (en orden inverso)
+        size_t tp = 0;
+        int w = (int)dict_size;
+        while(w != 0){
+            if(tp >= max_entries){               // salvaguarda
+                out.close();
+                delete[] prefix; delete[] lastch; delete[] tmp;
+                return false;
+            }
+            tmp[tp++] = (char)lastch[w];
+            w = prefix[w];
+        }
+
+        // Emitir S en orden correcto
+        for(size_t i = 0; i < tp; ++i){
+            out.put(tmp[tp - 1 - i]);
+            if(!out){
+                out.close();
+                delete[] prefix; delete[] lastch; delete[] tmp;
+                return false;
+            }
+        }
+    }
+
+    out.close();
+    delete[] prefix; delete[] lastch; delete[] tmp;
+    return true;
+}
 
 
 //FUNCIÓN PRINCIPAL
 int main() {
 
     // Rutas: ajusta si es necesario
-    const char* ruta_archivo   = "C:\\Users\\Jean\\Downloads\\datasetDesarrollo\\datasetDesarrollo\\Encriptado1.txt";
-    const char* ruta_pista = "C:\\Users\\Jean\\Downloads\\datasetDesarrollo\\datasetDesarrollo\\Pista1.txt";
-    const char* ruta_salida   = "C:\\Users\\Jean\\Downloads\\datasetDesarrollo\\datasetDesarrollo\\Salida1.txt";
+    const char* ruta_archivo   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Encriptado2.txt";
+    const char* ruta_pista = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\pista2.txt";
+    const char* ruta_salida   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Salida1.txt";
 
     size_t tam_archivo = 0, tam_pista = 0;
 
@@ -386,19 +466,24 @@ int main() {
     bool encontrado = false;
     int valor_k, valor_n;
 
+    //variables para el LZ78
+    unsigned char **diccionario=crearDicc(tam_archivo);
+
     //ciclos para iterar sobre las posibles formas del k y n
-    for (int k = 0; k < 256 && !encontrado; k++) {
-        for (int n = 1; n < 8 && !encontrado; n++) {
+    for (int k_actual = 0; k_actual < 256 && !encontrado; k_actual++) {
+        for (int n_actual = 1; n_actual < 8 && !encontrado; n_actual++) {
+            cout<<"valores de n "<<n_actual<<" y k "<<k_actual<<endl;
             //Descartar posibles combinaciones
-            unsigned char primer_byte = rotR(datos_archivo[0] ^ (unsigned char)k, n);
-            unsigned char segundo_byte = rotR(datos_archivo[1] ^ (unsigned char)k, n);
+            unsigned char primer_byte = rotR(datos_archivo[0] ^ (unsigned char)k_actual, n_actual);
+            unsigned char segundo_byte = rotR(datos_archivo[1] ^ (unsigned char)k_actual, n_actual);
             unsigned int combinacion_bytes = ((unsigned int)primer_byte << 8) | (unsigned int)segundo_byte;
 
             //Primer filtro rápido para método RLE
             bool posible_RLE = (combinacion_bytes != 0);
-            if (posible_RLE && filtro_RLE(datos_archivo, tam_archivo, k, n)){
-                if (RLE_con_pista(datos_archivo, tam_archivo,(char*)datos_pista, tam_pista, k, n, pi)) {
-                    encontrado = true; valor_k = k; valor_n = n;
+            if (posible_RLE && filtro_RLE(datos_archivo, tam_archivo, k_actual, n_actual)){
+                cout<<"cumplio filtro RLE"<<endl;;
+                if (RLE_con_pista(datos_archivo, tam_archivo,(char*)datos_pista, tam_pista, k_actual, n_actual, pi)) {
+                    encontrado = true; valor_k = k_actual; valor_n = n_actual;
                     if (encontrado) {
                         cout << "Metodo: RLE"
                              << "  K=0x" << hex << valor_k   // hex para ver K en hexadecimal
@@ -415,26 +500,36 @@ int main() {
                 }
             }
             //Primer filtro rápido para LZ78
-            //bool posible_LZ  = (combinacion_bytes == 0);
-
-            //if (posible_LZ){
-                //if (filtro_LZ78(datos_archivo, tam_archivo, k, n)) {
-
-                    //}
-                //}
-            //}
-
+            bool posible_LZ  = (combinacion_bytes == 0);
+            if (posible_LZ&&filtro_LZ78(datos_archivo, tam_archivo, k_actual, n_actual)){
+                    cout<<"cumplio filtro LZ78"<<endl;;
+                    if(LZ78_con_pista(datos_archivo, tam_archivo,datos_pista, tam_pista, k_actual, n_actual,diccionario,pi)){
+                        encontrado = true; valor_k = k_actual; valor_n = n_actual;
+                    if (encontrado) {
+                        cout << "Metodo: LZ78"
+                             << "  K=0x" << hex << valor_k   // hex para ver K en hexadecimal
+                             << "  n="   << dec << valor_n   // dec para imprimir n en decimal
+                             << "\n";
+                    }
+                    if(descomprimir_LZ78(datos_archivo, tam_archivo, valor_k, valor_n, ruta_salida)){
+                        //cout<<"Archivo creado con exito."<<endl;
+                    }
+                    else {
+                        cout<<"No se pudo escribir correctamente el archivo.";
+                    }
+                }
+                reiniciarDicc(diccionario, tam_archivo);
+            }
         }
     }
-
     //No se encontró la pista en el texto.
-    if (!encontrado) {
-        cout << "No se encontró la pista";
+    if(!encontrado) {
+        cout << "No se encontro la pista";
     }
     // Liberar memoria
-    delete []pi;
+    delete[] pi;
     delete[] datos_archivo;
->>>>>>> ea38a19db01e3630b240d40fc2c32a688d6c9f5f
     delete[] datos_pista;
+    libMem(diccionario,(tam_archivo/3)+1);
     return 0;
 }
