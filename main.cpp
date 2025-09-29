@@ -1,8 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <cstdio>
-#include <stdint.h>
-#include <iomanip>
 using namespace std;
 
 //--------------------- FUNCIONES -------------------------//
@@ -17,82 +14,6 @@ unsigned char* leer_archivo(const char* nombre, size_t &tam) {
     f.read(reinterpret_cast<char*>(datos), (std::streamsize)tam);
     return datos;
 }
-
-// Rotación a la derecha n bits de un byte
-unsigned char rotR(unsigned char b, int n) {
-    n &= 7;
-    return static_cast<unsigned char>(((b >> n) | (b << (8 - n))) & 0xFF);
-}
-//--------------funciones para implementar el metodo de compresion LZ78-------------------//
-unsigned char** crearDicc(size_t tam){
-    //reservaion de memoria para los indices del diccionario.
-    /* Eltamaño de la reserva es tam/3, porque cada 3 caracteres del mensaje desencriptado
-       se agregara un nuevo caracter en el diccionario y el +1, porque se debe inicializar el primer indice (puntero)
-       del diccionario con un caracter vacio ''.
-    */
-    if (tam == 0) {
-        cout << "Error: tamaño inválido para crear el diccionario" << endl;
-        return nullptr;
-    }
-    // tam/3 es la cantidad de tripletas, +1 para el índice 0 (prefijo vacío)
-    size_t capacidad = (tam / 3) + 1;
-    unsigned char **ptr = new unsigned char*[capacidad];
-
-    for (size_t i = 0; i < capacidad; i++) {
-        ptr[i] = new unsigned char[5];
-        for (int j = 0; j < 5; j++) {
-            ptr[i][j] = '\0';
-        }
-    }
-
-    return ptr;
-}
-// Reiniciar diccionario sin liberar memoria
-void reiniciarDicc(unsigned char** diccionario, size_t tam) {
-    if (!diccionario) return;
-    size_t capacidad = (tam / 3) + 1;
-
-    for (size_t i = 0; i < capacidad; i++) {
-        for (int j = 0; j < 5; j++) {
-            diccionario[i][j] = '\0';
-        }
-    }
-}
-void iniDicc(unsigned char **ptr, size_t tam ){
-    //se reserva memoria para los arreglos que almacenarán el diccionario
-    for (size_t i=0;i<(tam/3)+1;i++){
-        ptr[i]=nullptr;
-    }
-    ptr[0]=new unsigned char [1];
-    ptr[0][0]='\0';
-}
-unsigned short unirDosBytes(unsigned char hi,unsigned char lo){
-    return ((unsigned char)hi<<8)|(unsigned char)lo;
-}
-
-void inserEnDicc(unsigned char ** diccionario, unsigned short pr,unsigned char sym, size_t indDicc){
-    diccionario[indDicc][0]=(pr >> 8) & 0xFF;
-    diccionario[indDicc][1]=pr & 0xFF;
-    diccionario[indDicc][2]=sym;
-    unsigned short len=0;
-    if(pr!=0){
-        len=unirDosBytes(diccionario[pr][3],diccionario[pr][4]);
-    }
-    len++;
-    diccionario[indDicc][3]=(len >> 8) & 0xFF;
-    diccionario[indDicc][4]=len & 0xFF;
-}
-
-void libMem(unsigned char **ptr, size_t filas){
-    //para matrices bidimensionales
-    for (size_t i=0;i<filas;i++){
-        delete[] ptr[i];
-        ptr[i]=NULL;
-    }
-    delete[] ptr;
-    ptr=NULL;
-}
-
 //construcción de pi[]
 unsigned int* construir_tabla_fallo(const char* pat, size_t m) {
     if (m == 0) return nullptr;
@@ -115,24 +36,17 @@ unsigned int* construir_tabla_fallo(const char* pat, size_t m) {
 
     return pi;
 }
-bool kmp_step(unsigned char c,
-              const unsigned char* pat,
-              short int m,
-              unsigned int& estado,
-              const unsigned int* lps) {
-    while (estado > 0 && c != pat[estado]) {
-        estado = lps[estado - 1];
-    }
-    if (c == pat[estado]) {
-        estado++;
-        if (estado == m) {
-            estado = lps[estado - 1]; // reiniciar para buscar más ocurrencias
-            return true;              // ¡pista encontrada!
-        }
-    }
-    return false;
-}
+// Rotación a la derecha n bits de un byte
+unsigned char rotR(unsigned char b, int n) {
 
+    unsigned int x = b;
+    unsigned int derecha = x >> n;
+    unsigned int izquierda = (x << (8 - n)) & 0xFF;
+    unsigned int combinado = derecha | izquierda;
+
+    // Devolver byte limpio
+    return static_cast<unsigned char>(combinado & 0xFF);
+}
 //Filtro para descartar combinaciones inválidas del método RLE
 bool filtro_RLE(const unsigned char* datos, size_t tam, int K, int n)
 {
@@ -162,7 +76,6 @@ bool filtro_RLE(const unsigned char* datos, size_t tam, int K, int n)
     // si al menos 2 de las 3 tripletas son válidas es muy probable el RLE
     return (validas >= 2);
 }
-
 // metodo RLE y busqueda de pista
 bool RLE_con_pista(const unsigned char* archivo, size_t tam_arc,
                    const char* pista, size_t tam_pis,
@@ -228,7 +141,35 @@ bool RLE_con_pista(const unsigned char* archivo, size_t tam_arc,
 
     return false;
 }
+// RLE: tríos [hi][lo][sym] con contador 16-bit big-endian
+bool descomprimir_RLE(const unsigned char* archivo, size_t tam_arc,
+                      int k, int n, const char* salida)
+{
+    if (!archivo || !salida || tam_arc < 3) return false;
 
+    ofstream out(salida);  // modo texto (escribe como caracteres)
+    if (!out) return false;
+
+    for (size_t i = 0; i + 2 < tam_arc; i += 3) {
+        // Desencriptar trío
+        unsigned char hi  = rotR(archivo[i]   ^ (unsigned char)k, n);
+        unsigned char lo  = rotR(archivo[i+1] ^ (unsigned char)k, n);
+        unsigned char sym = rotR(archivo[i+2] ^ (unsigned char)k, n);
+
+        // Contador 16-bit (big-endian)
+        unsigned int cnt = ((unsigned int)hi << 8) | lo;
+        if (cnt == 0 || cnt > 65000) { out.close(); return false; }
+
+        // Escribir directamente como caracteres
+        for (unsigned int j = 0; j < cnt; j++) {
+            out.put((char)sym);
+            if (!out) { out.close(); return false; }
+        }
+    }
+
+    out.close();
+    return true;
+}
 //filtro LZ78
 bool filtro_LZ78(const unsigned char* datos, size_t tam, int K, int n)
 {
@@ -258,6 +199,83 @@ bool filtro_LZ78(const unsigned char* datos, size_t tam, int K, int n)
     }
 
     return true;
+}
+//--------------funciones para implementar el metodo de compresion LZ78-------------------//
+unsigned short unirDosBytes(unsigned char hi,unsigned char lo){
+    return ((unsigned char)hi<<8)|(unsigned char)lo;
+}
+unsigned char** crearDicc(size_t tam){
+    //reservaion de memoria para los indices del diccionario.
+    /* Eltamaño de la reserva es tam/3, porque cada 3 caracteres del mensaje desencriptado
+       se agregara un nuevo caracter en el diccionario y el +1, porque se debe inicializar el primer indice (puntero)
+       del diccionario con un caracter vacio ''.
+    */
+    if (tam == 0) {
+        cout << "Error: tamaño inválido para crear el diccionario" << endl;
+        return nullptr;
+    }
+    // tam/3 es la cantidad de tripletas, +1 para el índice 0 (prefijo vacío)
+    size_t capacidad = (tam / 3) + 1;
+    unsigned char **ptr = new unsigned char*[capacidad];
+
+    for (size_t i = 0; i < capacidad; i++) {
+        ptr[i] = new unsigned char[5];
+        for (int j = 0; j < 5; j++) {
+            ptr[i][j] = '\0';
+        }
+    }
+
+    return ptr;
+}
+// Reiniciar diccionario sin liberar memoria
+void reiniciarDicc(unsigned char** diccionario, size_t tam) {
+    if (!diccionario) return;
+    size_t capacidad = (tam / 3) + 1;
+
+    for (size_t i = 0; i < capacidad; i++) {
+        for (int j = 0; j < 5; j++) {
+            diccionario[i][j] = '\0';
+        }
+    }
+}
+void inserEnDicc(unsigned char ** diccionario, unsigned short pr,unsigned char sym, size_t indDicc){
+    diccionario[indDicc][0]=(pr >> 8) & 0xFF;
+    diccionario[indDicc][1]=pr & 0xFF;
+    diccionario[indDicc][2]=sym;
+    unsigned short len=0;
+    if(pr!=0){
+        len=unirDosBytes(diccionario[pr][3],diccionario[pr][4]);
+    }
+    len++;
+    diccionario[indDicc][3]=(len >> 8) & 0xFF;
+    diccionario[indDicc][4]=len & 0xFF;
+}
+
+void libMem(unsigned char **ptr, size_t filas){
+    //para matrices bidimensionales
+    for (size_t i=0;i<filas;i++){
+        delete[] ptr[i];
+        ptr[i]=NULL;
+    }
+    delete[] ptr;
+    ptr=NULL;
+}
+bool kmp_step(unsigned char c,
+              const unsigned char* pat,
+              short int m,
+              unsigned int& estado,
+              const unsigned int* lps) {
+    while (estado > 0 && c != pat[estado]) {
+        estado = lps[estado - 1];
+    }
+    if (c == pat[estado]) {
+        estado++;
+        if (estado == m) {
+            estado = lps[estado - 1]; // reiniciar para buscar más ocurrencias
+            return true;              // ¡pista encontrada!
+        }
+    }
+    return false;
 }
 
 bool emitirPrefijo(unsigned short pr,
@@ -332,36 +350,6 @@ bool LZ78_con_pista(const unsigned char *archivo,
     }
     return false;
 }
-
-// RLE: tríos [hi][lo][sym] con contador 16-bit big-endian
-bool descomprimir_RLE(const unsigned char* archivo, size_t tam_arc,
-                      int k, int n, const char* salida)
-{
-    if (!archivo || !salida || tam_arc < 3) return false;
-
-    ofstream out(salida);  // modo texto (escribe como caracteres)
-    if (!out) return false;
-
-    for (size_t i = 0; i + 2 < tam_arc; i += 3) {
-        // Desencriptar trío
-        unsigned char hi  = rotR(archivo[i]   ^ (unsigned char)k, n);
-        unsigned char lo  = rotR(archivo[i+1] ^ (unsigned char)k, n);
-        unsigned char sym = rotR(archivo[i+2] ^ (unsigned char)k, n);
-
-        // Contador 16-bit (big-endian)
-        unsigned int cnt = ((unsigned int)hi << 8) | lo;
-        if (cnt == 0 || cnt > 65000) { out.close(); return false; }
-
-        // Escribir directamente como caracteres
-        for (unsigned int j = 0; j < cnt; j++) {
-            out.put((char)sym);
-            if (!out) { out.close(); return false; }
-        }
-    }
-
-    out.close();
-    return true;
-}
 bool descomprimir_LZ78(const unsigned char* enc, size_t nin,
                        int K, int nbits, const char* outpath)
 {
@@ -432,104 +420,99 @@ bool descomprimir_LZ78(const unsigned char* enc, size_t nin,
     delete[] prefix; delete[] lastch; delete[] tmp;
     return true;
 }
-
-
 //FUNCIÓN PRINCIPAL
 int main() {
 
-    // Rutas: ajusta si es necesario
-    const char* ruta_archivo   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Encriptado2.txt";
-    const char* ruta_pista = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\pista2.txt";
-    const char* ruta_salida   = "C:\\2025_2\\informatica_II\\datasetDesarrollo\\datasetDesarrollo\\Salida1.txt";
+    int p;
+    cout << "Cantidad de archivos a leer: ";
+    cin >> p;
 
-    size_t tam_archivo = 0, tam_pista = 0;
+    for (int i = 1; i <= p; i++) {
 
-    //leemos los archivos
-    unsigned char* datos_archivo = leer_archivo(ruta_archivo, tam_archivo);
-    unsigned char* datos_pista = leer_archivo(ruta_pista, tam_pista);
+        char arreglo_archivo[20];
+        char arreglo_pista[20];
+        char arreglo_salida[20];
 
-    //pequeñas validaciones
-    if (!datos_archivo || !datos_pista || tam_archivo == 0 || tam_pista == 0) {
-        cout << "No se pudo leer archivos.\n";
-        delete[] datos_archivo; delete[] datos_pista;
-        return 1;
-    }
+        // Construir las rutas dinámicamente
+        sprintf(arreglo_archivo, "Encriptado%d.txt", i);
+        sprintf(arreglo_pista,   "pista%d.txt", i);
+        sprintf(arreglo_salida,  "Salida%d.txt", i);
 
-    //creacion de pi[] para la aplicación del KMP
-    unsigned int* pi = construir_tabla_fallo((char*)datos_pista, tam_pista);
-    //imprimir la tabla del fallo(pi)
-    //for (size_t i=0; i<tam_pista; i++){
-    // cout<< pi[i]<<";";
-    //}
+        // Rutas:
+        const char* ruta_archivo   = arreglo_archivo;
+        const char* ruta_pista = arreglo_pista;
+        const char* ruta_salida   = arreglo_salida;
 
-    // Variables para guardar parámetros correctos
-    bool encontrado = false;
-    int valor_k, valor_n;
+        size_t tam_archivo = 0, tam_pista = 0;
 
-    //variables para el LZ78
-    unsigned char **diccionario=crearDicc(tam_archivo);
+        //leemos los archivos
+        unsigned char* datos_archivo = leer_archivo(ruta_archivo, tam_archivo);
+        unsigned char* datos_pista = leer_archivo(ruta_pista, tam_pista);
 
-    //ciclos para iterar sobre las posibles formas del k y n
-    for (int k_actual = 0; k_actual < 256 && !encontrado; k_actual++) {
-        for (int n_actual = 1; n_actual < 8 && !encontrado; n_actual++) {
-            cout<<"valores de n "<<n_actual<<" y k "<<k_actual<<endl;
-            //Descartar posibles combinaciones
-            unsigned char primer_byte = rotR(datos_archivo[0] ^ (unsigned char)k_actual, n_actual);
-            unsigned char segundo_byte = rotR(datos_archivo[1] ^ (unsigned char)k_actual, n_actual);
-            unsigned int combinacion_bytes = ((unsigned int)primer_byte << 8) | (unsigned int)segundo_byte;
+        //pequeñas validaciones
+        if (!datos_archivo || !datos_pista || tam_archivo == 0 || tam_pista == 0) {
+            cout << "No se pudo leer archivos.\n";
+            delete[] datos_archivo; delete[] datos_pista;
+            return 1;
+        }
+        //Diccionario para el LZ78
+        unsigned char **diccionario=crearDicc(tam_archivo);
 
-            //Primer filtro rápido para método RLE
-            bool posible_RLE = (combinacion_bytes != 0);
-            if (posible_RLE && filtro_RLE(datos_archivo, tam_archivo, k_actual, n_actual)){
-                cout<<"cumplio filtro RLE"<<endl;;
-                if (RLE_con_pista(datos_archivo, tam_archivo,(char*)datos_pista, tam_pista, k_actual, n_actual, pi)) {
-                    encontrado = true; valor_k = k_actual; valor_n = n_actual;
-                    if (encontrado) {
-                        cout << "Metodo: RLE"
-                             << "  K=0x" << hex << valor_k   // hex para ver K en hexadecimal
-                             << "  n="   << dec << valor_n   // dec para imprimir n en decimal
-                             << "\n";
-                    }
-                    if(descomprimir_RLE(datos_archivo, tam_archivo, valor_k, valor_n, ruta_salida)){
-                        cout<<"Archivo creado con exito."<<endl;
-                    }
-                    else {
-                        cout<<"No se pudo escribir correctamente el archivo.";
-                    }
+        //creacion de tabla de fallo(pi)[] para la aplicación del KMP
+        unsigned int* pi = construir_tabla_fallo((char*)datos_pista, tam_pista);
 
-                }
-            }
-            //Primer filtro rápido para LZ78
-            bool posible_LZ  = (combinacion_bytes == 0);
-            if (posible_LZ&&filtro_LZ78(datos_archivo, tam_archivo, k_actual, n_actual)){
-                    cout<<"cumplio filtro LZ78"<<endl;;
-                    if(LZ78_con_pista(datos_archivo, tam_archivo,datos_pista, tam_pista, k_actual, n_actual,diccionario,pi)){
-                        encontrado = true; valor_k = k_actual; valor_n = n_actual;
-                    if (encontrado) {
-                        cout << "Metodo: LZ78"
-                             << "  K=0x" << hex << valor_k   // hex para ver K en hexadecimal
-                             << "  n="   << dec << valor_n   // dec para imprimir n en decimal
-                             << "\n";
-                    }
-                    if(descomprimir_LZ78(datos_archivo, tam_archivo, valor_k, valor_n, ruta_salida)){
-                        //cout<<"Archivo creado con exito."<<endl;
-                    }
-                    else {
-                        cout<<"No se pudo escribir correctamente el archivo.";
+        // Variables para guardar parámetros correctos
+        bool encontrado = false;
+        int valor_k=0, valor_n=0;
+        cout<<"-------Encriptado procesado: "<< i<<"-------"<< endl;
+
+        //ciclos para iterar sobre las posibles formas del k y n
+        for (int k = 0; k < 256 && !encontrado; k++) {
+            for (int n = 1; n < 8 && !encontrado; n++) {
+                //filtro rápido para RLE
+                if (!encontrado && filtro_RLE(datos_archivo, tam_archivo, k, n)){
+                    //filtro para encontrar pista con el texto
+                    if (RLE_con_pista(datos_archivo, tam_archivo,(char*)datos_pista, tam_pista, k, n, pi)) {
+                        encontrado = true; valor_k = k; valor_n = n;
+                        if (encontrado) {
+                            cout << "Metodo: RLE" <<endl<<"K=0x"<<hex<< valor_k << ".  n=" <<dec<<valor_n << "\n";
+                        }
+                        if(descomprimir_RLE(datos_archivo, tam_archivo, valor_k, valor_n, ruta_salida)){
+                            cout<<"Archivo creado con exito."<<endl;
+                        }
+                        else {
+                            cout<<"No se pudo escribir correctamente el archivo.";
+                        }
                     }
                 }
-                reiniciarDicc(diccionario, tam_archivo);
+                //Filtro rápido para LZ78
+                if (!encontrado && filtro_LZ78(datos_archivo, tam_archivo, k, n)) {
+                    //filtro para encontrar pista con el texto
+                    if (LZ78_con_pista(datos_archivo, tam_archivo,datos_pista, tam_pista, k, n,diccionario, pi)) {
+                        encontrado = true; valor_k = k; valor_n = n;
+                        if (encontrado) {
+                            cout << "Metodo: LZ78" <<endl<<"K=0x"<<hex<< valor_k << ".  n=" <<dec<<valor_n << "\n";
+                            if(descomprimir_LZ78(datos_archivo, tam_archivo, k, n, ruta_salida)){
+                                cout<<"Archivo creado con exito."<<endl;
+                            }
+                            else {
+                                cout<<"No se pudo escribir correctamente el archivo.";
+                            }
+                        }
+                    }
+                    reiniciarDicc(diccionario, tam_archivo);
+                }
             }
         }
+        if(!encontrado) {
+            cout << "No se encontró la pista en el encriptado #"<< i<< endl;
+
+        }
+        // Liberar memoria
+        delete[] pi;
+        delete[] datos_archivo;
+        delete[] datos_pista;
+        libMem(diccionario,(tam_archivo/3)+1);
     }
-    //No se encontró la pista en el texto.
-    if(!encontrado) {
-        cout << "No se encontro la pista";
-    }
-    // Liberar memoria
-    delete[] pi;
-    delete[] datos_archivo;
-    delete[] datos_pista;
-    libMem(diccionario,(tam_archivo/3)+1);
     return 0;
 }
